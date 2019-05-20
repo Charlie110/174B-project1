@@ -99,7 +99,34 @@ int main(){
 	cout<<"build the tree and find the first r.id \n";
 	BPlusTree B;
 	Node *root=B.Init(data,address);
-	bool t=B.search(111115, root);
+	Node *node= root;
+	bool t=B.search(111115, node);
+	
+	record new_r;
+	vector<string> row;
+	row.push_back("100000");
+       	row.push_back("a");
+     	row.push_back("b");
+     	row.push_back("c");
+	row.push_back("d");
+	row.push_back("100000");
+
+	strcpy (new_r.id, row[0].c_str());
+        strcpy (new_r.first_name, row[1].c_str());
+        strcpy (new_r.last_name, row[2].c_str());
+        strcpy (new_r.ssn, row[3].c_str());
+        strcpy (new_r.user_name, row[4].c_str());
+        strcpy (new_r.password, row[5].c_str());
+	
+	vector<record> insertion;
+	vector<record*> insertion_add;
+	insertion.push_back(new_r);
+	insertion_add=map(insertion);
+	
+	node=root;
+	cout<<"insert a new record with id 100000 \n";
+	B.insert(new_r, insertion_add[0], node);
+	t=B.search(100000, root);
 	return 0;
 }
 

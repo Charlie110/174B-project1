@@ -71,7 +71,7 @@ Node* BPlusTree::Init(vector<record> data, vector<record*> address){
 	//make them in order
 	reverse(current_height_nodes_address.begin(), current_height_nodes_address.end());
 
-	cout<<"finished the leaf level \n";
+	//cout<<"finished the leaf level \n";
 	Node *root=helper_init(current_height_nodes, current_height_nodes_address);
 
 
@@ -204,23 +204,17 @@ bool BPlusTree::search(int id, Node* root){
 	int i=0;
 	
 	while(root->type!= T_LEAF){
-	//	cout<<"finding \n";
-//		cout<<"size is:"<<root->size<<endl;
-//		cout<<"largest index is: "<<root->index[ root->size  ]<<endl;
 		if(id > root->index[ root->size-1  ]){
-			cout<<"if clause \n";
 			root=(Node*)(root->child[ root->size+1 ]);
 		
 		}
 		else{
-//			cout<<"else clasue \n";
 			for(i=0; i<root->size; i++){
 				if(id<=root->index[i]){
 					break;
 				}
 			}
 			root=(Node*)(root->child[i]);
-//			cout<<"else clause new id is "<<root->index[0]<<endl;
 		}
 	}
 	//at leaf node
@@ -238,5 +232,149 @@ bool BPlusTree::search(int id, Node* root){
 	cout<<"didnt find \n";
 	return false;
 }
+
+void BPlusTree::insert(record r, record* address, Node* root){
+	int id = atoi(r.id);
+	int i=0;
+        while(root->type!= T_LEAF){
+                if(id > root->index[ root->size-1  ]){
+                        root=(Node*)(root->child[ root->size+1 ]);
+
+                }
+                else{   
+                        for(i=0; i<root->size; i++){
+                                if(id<=root->index[i]){
+                                        break;
+                                }
+                        }
+                        root=(Node*)(root->child[i]);
+                }
+        }
+	//no split
+	if(root->size<4){
+	//	cout<<"no need to split \n";
+	//	cout<<"id is: "<<id<<endl;
+		add_data(id, address, root);
+	}
+	//we need to split
+	else{
+		helper_split_leaf(id,address,root);
+	}
+	return;
+}
+
+void BPlusTree::add_data(int id,record* address, Node* root){
+	int i=0;
+	if(id<root->index[0]){
+	//	cout<<"should be here \n";
+		for(i=root->size; i>0; i--){
+			root->index[i]=root->index[i-1];
+			root->child[i]=root->child[i-1];
+		}
+		root->index[0]=id;
+		root->child[0]=address;
+	}
+	else if(id>root->index[ root->size-1]){
+		root->index[root->size] = id;
+		root->child[root->size] = address;
+	}
+	else{
+		for(i=0; i<root->size-1; i++){
+			if(id>root->index[i] && id<root->index[i+1]){
+				break;}
+		}
+		i+=1; // i is the place where we should put record
+		for(int j=root->size; j>i; j--){
+			root->index[j]=root->index[j-1];
+			root->child[j]=root->child[j-1];
+		}
+		root->index[i]=id;
+		root->child[i]=address;
+	}
+	root->size+=1;
+	return;
+}
+
+
+void BPlusTree::helper_split_leaf(int id, record* address, Node* leaf){
+	// xxxx =>  leaf => new_node => xxxx
+	Node new_node;
+	new_node.type=T_LEAF;
+	new_node.index[0]=leaf->index[3];
+	new_node.child[0]=leaf->child[3];
+
+	new_node.index[1]=leaf->index[4];
+	new_node.child[1]=leaf->child[4];
+	new_node.size=2;
+	
+	int prev_largest_val=leaf->index[4];
+
+	leaf->size=2;
+	int length=sizeof(Node);	
+	Node* region=(Node*)mmap(NULL,
+			length,
+			PROT_WRITE|PROT_READ,
+			MAP_ANON|MAP_PRIVATE,
+			-1,
+			0);
+	if (region == MAP_FAILED){
+		perror("error mapping the nodes");
+		exit(1);
+	}
+	Node *t = &new_node;
+	memcpy(region, t, length);
+	msync(region,length,MS_SYNC);
+
+	region->next=leaf->next;
+	leaf->next=region;	
+
+	if(id<region->index[0]){
+		add_data(id, address, leaf);
+	}
+	else{
+		add_data(id,address,region);
+	}
+	Node* parent=leaf->parent;
+	if(parent->size<4){
+		int j=0;
+		while(1){
+			if(parent->index[j] == prev_largest_val){
+				break;
+			}
+			j++;
+			if(j>parent->size-1){
+				break;
+			}
+		}
+		//j is the index where the address of leaf stored in child[]
+		for(int k=parent->size; k>j;k--){
+			parent->index[k]=parent->index[k-1];
+		}
+		for(int k=parent->size+1; k>j;k--){
+			parent->child[k]=parent->child[k-1];
+		}
+		parent->index[j]=leaf->index[ leaf->size-1 ];
+		parent->child[j]=leaf;
+		parent->child[j+1]=region;
+			
+	}
+	else{
+		
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

@@ -37,7 +37,9 @@ class BPlusTree{
 public:
 	Node* Init(vector<record> data, vector<record*> address);
 	Node* helper_init(vector<Node> data, vector<Node*> address);
-	void insert(record r,Node* root);
+	void insert(record r, record* add, Node* root);
+	void helper_split_leaf(int id, record* a, Node* r);
+	void add_data(int id, record* address, Node* root);
 	bool search(int id, Node* root);
 	void range(int id1, int id2, Node* root);
 };
