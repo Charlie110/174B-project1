@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <cstring>
-#include <stdlib>
+#include <cstdlib>
 #include <string>
 #include <vector>
 using namespace std;
@@ -23,21 +23,24 @@ enum Token{
 	T_NODE,
 };
 
-Class BPlusTree{
-public:
-	struct Node{
-		Token type;
-		vector<int> index;
-		vecotr<void*> child;
-		Node* parent;
-		Node* next;
-	}
+struct Node{
+	Token type;
+	int index[4];
+	void *child[5];
+	Node* parent;
+	Node* next;
+	int size;
+};
 
-	Node* Init(vector<record> data);
-	void insert(record r);
-	bool search(int id);
-	void range(int id1, int id2);
-}
+
+class BPlusTree{
+public:
+	Node* Init(vector<record> data, vector<record*> address);
+	Node* helper_init(vector<Node> data, vector<Node*> address);
+	void insert(record r,Node* root);
+	bool search(int id, Node* root);
+	void range(int id1, int id2, Node* root);
+};
 
 
 

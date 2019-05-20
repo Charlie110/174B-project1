@@ -7,7 +7,7 @@
 #include <sstream>
 #include <cstring>
 #include <unistd.h>
-#include "BPlusTree.h"
+#include "BPlusTree.hpp"
 using namespace std;
 /*
 struct record{
@@ -93,7 +93,13 @@ int main(){
 	record r= *(address[0]);
 	cout<<"first instance of r's id is: \n";
 	cout<<r.id<<endl;
+	cout<<"the largest id is: "<<address.back()->id<<endl;
 
+
+	cout<<"build the tree and find the first r.id \n";
+	BPlusTree B;
+	Node *root=B.Init(data,address);
+	bool t=B.search(111115, root);
 	return 0;
 }
 

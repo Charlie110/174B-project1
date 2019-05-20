@@ -1,6 +1,6 @@
 all: main
 
-main:
-	g++ -std=c++11 -o main main.cpp
+main: main.cpp BPlusTree.cpp
+	g++ -std=c++11 -o main main.cpp BPlusTree.cpp -lstdc++fs
 clean:
 	rm main
