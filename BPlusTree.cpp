@@ -7,7 +7,33 @@
 #include <algorithm>
 using namespace std;
 
-Node* BPlusTree::Init(vector<record> data, vector<record*> address){
+BPlusTree::BPlusTree(){
+	root=NULL;
+}
+BPlusTree::~BPlusTree(){
+}
+void BPlusTree::clear(Node* node){
+	if(node->type!=T_LEAF){
+		for(int i=0; i<node->size+1; i++){
+			clear((Node*)node->child[i]);
+		}	
+	}
+	munmap(node, sizeof(Node));
+}
+
+
+
+int BPlusTree::min_val(Node node){
+
+	while(node.type!=T_LEAF){
+		node=*(Node*)node.child[0];
+		//cout<<"in min val"<<endl;
+		//cout<<"node type"<<node.type<<endl;
+	}
+	return node.index[0];
+}
+
+Node* BPlusTree::Init(vector<record> data, page* address){
 	vector<Node> current_height_nodes;
 	vector<Node*> current_height_nodes_address;
 	//leafnode
@@ -19,13 +45,13 @@ Node* BPlusTree::Init(vector<record> data, vector<record*> address){
 	else{
 		n.type=T_LEAF;
 		n.index[i] = (atoi(data[i].id));
-		n.child[i] = (address[i]);
+		n.child[i] = address;
 		i+=1;
 		n.index[i] = (atoi(data[i].id));
-		n.child[i] = (address[i]);
+		n.child[i] = (address);
 		i+=1;
 		n.index[i] = (atoi(data[i].id));
-		n.child[i] = (address[i]);
+		n.child[i] = (address);
 		i+=1;
 		n.size=3;
 		current_height_nodes.push_back(n);
@@ -36,20 +62,22 @@ Node* BPlusTree::Init(vector<record> data, vector<record*> address){
 			Node new_node;
 			new_node.type=T_LEAF;
 			new_node.index[j] = (atoi(data[i].id));
-			new_node.child[j] = (address[i]);
+			new_node.child[j] = address;
 			new_node.size=2;
 			current_height_nodes.push_back(new_node);
+			//cout<<"current_height node size "<<current_height_nodes.size()<<endl;
 			j+=1;
 		}
 		else{
 			current_height_nodes.back().index[j] = (atoi(data[i].id));
-			current_height_nodes.back().child[j] = (address[i]);
+			current_height_nodes.back().child[j] = (address);
 			j=0;
 		}
 	}
 	int length=sizeof(Node);
 	int size=current_height_nodes.size();
-	for(int i=size; i>=0;i--){
+	//cout<<"size is "<<size<<endl;
+	for(int i=size-1; i>=0;i--){
 		Node* region=(Node*)mmap(NULL,
 				length,
 				PROT_WRITE|PROT_READ,
@@ -60,8 +88,11 @@ Node* BPlusTree::Init(vector<record> data, vector<record*> address){
 			perror("error mapping the nodes");
 			exit(1);
 		}
-		if(i!=size){
+		if(i!=size-1){
 			current_height_nodes[i].next=current_height_nodes_address.back();
+		}
+		else{
+			current_height_nodes[i].next=NULL;
 		}
 		Node *n=&current_height_nodes[i];
 		memcpy(region, n, length);
@@ -72,22 +103,31 @@ Node* BPlusTree::Init(vector<record> data, vector<record*> address){
 	reverse(current_height_nodes_address.begin(), current_height_nodes_address.end());
 
 	//cout<<"finished the leaf level \n";
-	Node *root=helper_init(current_height_nodes, current_height_nodes_address);
-
+	
+	Node *root=helper_init(current_height_nodes_address, "node");
 
 	return root;
 }
-
-Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
-	//cout<<"in helper init \n";
+Node* BPlusTree::helper_init(vector<Node*> address, string flag){
+	//cout<<"helper init size of add "<<address.size()<<endl;
+	vector<Node> data;
+	for(int i=0; i<address.size();i++){
+		data.push_back(*address[i]);
+	}
+	
 	if(data.size()<=5){
-	//	cout<<"make the root node \n";
+
 		Node* root;
 		Node n;
-		n.type=T_ROOT;
+		if(flag=="root"){
+			n.type=T_ROOT;
+		}
+		else{
+			n.type=T_NODE;
+		}
 		for(int i=0; i<data.size()-1;i++){
-			n.index[i] = (data[i].index[ data[i].size-1 ]);
-	//		cout<<"root index: "<<n.index[i]<<endl;
+			//the least value of right child
+			n.index[i] = min_val(data[i+1]);
 		}
 		for(int k=0; k<address.size();k++){
 			n.child[k] = address[k];	
@@ -104,10 +144,10 @@ Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
 		Node *temp= &n;
 		memcpy(root, temp, length);
 		msync(root, length, MS_SYNC);
+		this->root=root;
 		return root;
 	}
 	else{
-		//cout<<"make inner node \n";
 		vector<Node> current_nodes;
 		vector<Node*> current_nodes_address;
         	Node n;
@@ -121,9 +161,10 @@ Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
 			n.size=3;
 			//put 4 nodes into a node
 			//ie 3 index and 4 child
+
 			while(i<4){
 				if(i<3){
-					n.index[i]=data[i].index[ data[i].size-1 ];
+					n.index[i]=min_val(data[i+1]);
 				}
 				n.child[i]= address[i];
 				i+=1;
@@ -137,7 +178,7 @@ Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
         		n.size=4;
 			while(i<5){
                                 if(i<4){
-                                        n.index[i]=data[i].index[ data[i].size-1 ];
+                                        n.index[i]=min_val(data[i+1]);
                                 }
                                 n.child[i]= address[i];
                                 i+=1;
@@ -147,22 +188,24 @@ Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
 		//cout<<"after making it mutiple of three \n";
         	int j=0;
         	for(i;i<data.size();i++){
+			//2 index 3 childs
                 	if(j==0){
                         	Node new_node;
                         	new_node.type=T_NODE;
-                        	new_node.index[j] = data[i].index[ data[i].size-1 ];
                         	new_node.child[j] = address[i];
                         	new_node.size=2;
                         	current_nodes.push_back(new_node);
                         	j+=1;
                 	}
                 	else if(j==1){
-                        	current_nodes.back().index[j] =data[i].index[ data[i].size-1 ] ;
+                        	current_nodes.back().index[j-1] =min_val(data[i]);
                         	current_nodes.back().child[j] = (address[i]);
-				//cout<<current_nodes.back().size<<endl;
+
                         	j+=1;
                 	}
 			else{
+				current_nodes.back().index[j-1] =min_val(data[i]);
+				
 				current_nodes.back().child[j] = (address[i]);
 				j=0;
 			}
@@ -189,84 +232,89 @@ Node* BPlusTree::helper_init(vector<Node> data, vector<Node*> address){
                 	current_nodes_address.push_back(region);
 		}
 
-		return helper_init(current_nodes, current_nodes_address);
+		return helper_init(current_nodes_address, flag);
 	}
 
 
 }
 
 
-bool BPlusTree::search(int id, Node* root){
-	//cout<<"in search \n";
-	//cout<<root->index[0]<<endl;
-	//cout<<"root size is "<<root->size<<endl;
-	//cout<<"root type: "<<root->type<<endl;
-	int i=0;
-	
+//
+bool BPlusTree::search(int id, Node* root, vector<Node*>& path){
+	//cout<<"in search \n";	
 	while(root->type!= T_LEAF){
-		if(id > root->index[ root->size-1  ]){
-			root=(Node*)(root->child[ root->size+1 ]);
-		
+		//cout<<"root type "<<root->type<<endl;
+		path.push_back(root);
+		if(id<root->index[0]){
+			//cout<<"smaller the 1st index "<<root->index[0]<<endl;
+			root=(Node*)(root->child[0]);
 		}
-		else{
-			for(i=0; i<root->size; i++){
-				if(id<=root->index[i]){
+		else{	
+			int i;
+			for(i=root->size-1; i>=0; i--){
+				if(id >= root->index[i]){
+					//cout<<"larger than node->index[i] "<<root->index[i]<<endl;			
 					break;
 				}
 			}
-			root=(Node*)(root->child[i]);
+			root=(Node*)(root->child[i+1]);
 		}
 	}
 	//at leaf node
-//	cout<<"at leaf node \n";	
-	for(i=0; i<root->size;i++){
+	for(int i=0; i<root->size;i++){
 		if(root->index[i] == id){
-			record r=*(record *)(root->child[i]);
-			cout<<"find, its id and name are:"<<endl;
-			cout<<r.id<<" " <<r.first_name<<" "<<r.last_name<<endl;
-
-			return true;
+			page p=*(page *)(root->child[i]);
+			record r;
+			for(int j=0; j<p.record_size; j++){
+				if(stoi(p.records[j].id)==id){
+					r=p.records[j];
+					cout<<"find, its id and name are:"<<endl;
+					cout<<r.id<<" " <<r.first_name<<" "<<r.last_name<<endl;
+					return true;}
+			}
 		}
 	
 	}
-	cout<<"didnt find \n";
+	cout<<"didnt find!  \n";
+	cout<<"wrong id \n";
 	return false;
 }
 
-void BPlusTree::insert(record r, record* address, Node* root){
+void BPlusTree::insert(record r, page* address, Node* root, vector<Node*>&path){
+	
 	int id = atoi(r.id);
 	int i=0;
         while(root->type!= T_LEAF){
-                if(id > root->index[ root->size-1  ]){
-                        root=(Node*)(root->child[ root->size+1 ]);
+		path.push_back(root);
+                if(id < root->index[0]){
+                        root=(Node*)(root->child[0]);
 
                 }
                 else{   
-                        for(i=0; i<root->size; i++){
-                                if(id<=root->index[i]){
+			int i=0;
+                        for(i=root->size-1; i>=0; i--){
+                                if(id>=root->index[i]){
                                         break;
                                 }
                         }
-                        root=(Node*)(root->child[i]);
+                        root=(Node*)(root->child[i+1]);
                 }
         }
-	//no split
+	Node* parent=path.back();
 	if(root->size<4){
-	//	cout<<"no need to split \n";
-	//	cout<<"id is: "<<id<<endl;
-		add_data(id, address, root);
+		add_data(id, address, root, parent);
 	}
 	//we need to split
 	else{
-		helper_split_leaf(id,address,root);
+		helper_split_leaf(id,address,root, path);
 	}
 	return;
 }
 
-void BPlusTree::add_data(int id,record* address, Node* root){
+
+void BPlusTree::add_data(int id,page* address, Node* root, Node* parent){
 	int i=0;
 	if(id<root->index[0]){
-	//	cout<<"should be here \n";
 		for(i=root->size; i>0; i--){
 			root->index[i]=root->index[i-1];
 			root->child[i]=root->child[i-1];
@@ -292,23 +340,27 @@ void BPlusTree::add_data(int id,record* address, Node* root){
 		root->child[i]=address;
 	}
 	root->size+=1;
+
+	//make sure the parent index still has the least value of right child
+	for(int k=0; k<parent->size; k++){
+		parent->index[k]=min_val(*(Node*)parent->child[k+1]);
+	}
 	return;
 }
 
 
-void BPlusTree::helper_split_leaf(int id, record* address, Node* leaf){
+void BPlusTree::helper_split_leaf(int id, page* address, Node* leaf, vector<Node*>& path){
 	// xxxx =>  leaf => new_node => xxxx
 	Node new_node;
 	new_node.type=T_LEAF;
-	new_node.index[0]=leaf->index[3];
-	new_node.child[0]=leaf->child[3];
+	new_node.index[0]=leaf->index[2];
+	new_node.child[0]=leaf->child[2];
 
-	new_node.index[1]=leaf->index[4];
-	new_node.child[1]=leaf->child[4];
+	new_node.index[1]=leaf->index[3];
+	new_node.child[1]=leaf->child[3];
 	new_node.size=2;
 	
-	int prev_largest_val=leaf->index[4];
-
+	//int prev_largest_val=leaf->index[3];
 	leaf->size=2;
 	int length=sizeof(Node);	
 	Node* region=(Node*)mmap(NULL,
@@ -327,41 +379,145 @@ void BPlusTree::helper_split_leaf(int id, record* address, Node* leaf){
 
 	region->next=leaf->next;
 	leaf->next=region;	
-
+	
+	//after making the new node, add data
+	Node* parent = path.back();
 	if(id<region->index[0]){
-		add_data(id, address, leaf);
+		add_data(id, address, leaf, parent);
 	}
 	else{
-		add_data(id,address,region);
+		add_data(id,address,region, parent);
 	}
-	Node* parent=leaf->parent;
-	if(parent->size<4){
-		int j=0;
-		while(1){
-			if(parent->index[j] == prev_largest_val){
-				break;
-			}
-			j++;
-			if(j>parent->size-1){
-				break;
-			}
-		}
-		//j is the index where the address of leaf stored in child[]
-		for(int k=parent->size; k>j;k--){
-			parent->index[k]=parent->index[k-1];
-		}
-		for(int k=parent->size+1; k>j;k--){
-			parent->child[k]=parent->child[k-1];
-		}
-		parent->index[j]=leaf->index[ leaf->size-1 ];
-		parent->child[j]=leaf;
-		parent->child[j+1]=region;
-			
-	}
-	else{
-		
-	}
+	parent=path.back();
+	path.pop_back();
+	helper_split(parent, leaf, region, path);
 }
+void BPlusTree::helper_split(Node* parent, Node* leaf, Node* region, vector<Node*>& path){
+	//    parent
+	// leaf region
+	int j=0;
+	while(1){
+		if((Node*)parent->child[j] == leaf){
+			break;
+		}
+		j++;
+		if(j>=5){
+			cout<<"wrong in helper split"<<endl;
+			exit(1);
+		}
+	}
+
+	//j is the index where the address of leaf stored in parent->child[]
+	if(parent->size<4){
+		//cout<<"parent size <4"<<endl;
+
+                for(int k=parent->size+1; k>j;k--){
+                        parent->child[k]=parent->child[k-1];
+                }
+                parent->child[j]=leaf;
+                parent->child[j+1]=region;
+		parent->size+=1;
+		for(int k=0; k<parent->size;k++){
+			parent->index[k]=min_val(*(Node*)parent->child[k+1]);
+		}
+
+        }
+        else{
+		// we need to split again
+
+		//parent newnode
+		// leaf->region
+		Node new_node;
+		new_node.type=T_LEAF;
+        	new_node.index[0]=parent->index[2];
+        	new_node.child[0]=parent->child[2];
+
+        	new_node.index[1]=parent->index[3];
+        	new_node.child[1]=parent->child[3];
+		
+		new_node.child[2]=parent->child[4];
+        	new_node.size=2;
+		parent->size=2;
+        	int length=sizeof(Node);
+        	Node* new_node_address=(Node*)mmap(NULL,
+                	        length,
+                        	PROT_WRITE|PROT_READ,
+                        	MAP_ANON|MAP_PRIVATE,
+                        	-1,
+                        	0);
+        	if (new_node_address == MAP_FAILED){
+                	perror("error mapping the nodes");
+                	exit(1);
+        	}
+        	Node *t = &new_node;
+        	memcpy(new_node_address, t, length);
+        	msync(new_node_address,length,MS_SYNC);
+		
+
+		if(j<=1){
+			//put leaf and region in parent node
+                	for(int k=parent->size; k>j;k--){
+                        	parent->child[k]=parent->child[k-1];
+                	}
+                	parent->child[j]=leaf;
+                	parent->child[j+1]=region;\
+		}
+		else if(j==2){
+			//put leaf in parent, region in new node;
+			parent->child[2]=leaf;
+			new_node_address->child[0]=region;
+		}
+		else if(j==3){
+			//put leaf and region in new node
+			new_node_address->child[0]=leaf;
+			new_node_address->child[1]=region;
+		}
+		else{
+			//put leaf and region in new node
+
+                        new_node_address->child[0]=new_node_address->child[1];
+                        new_node_address->child[1]=leaf;
+			new_node_address->child[2]=region;
+		}
+
+		for(int k=0; k<parent->size;k++){
+                        parent->index[k]=min_val(*(Node*)parent->child[k+1]);
+		}
+		for(int k=0; k<new_node_address->size;k++){
+                        new_node_address->index[k]=min_val(*(Node*)new_node_address->child[k+1]);
+                }
+		
+		
+		if(parent->type==T_ROOT){
+			parent->type=T_LEAF;
+			Node new_root;
+                	new_root.child[0]=parent;
+                	new_root.child[1]=new_node_address;
+			new_root.index[0]=min_val(*(Node*)new_root.child[1]);
+
+			new_node.size=1;
+                	int length=sizeof(Node);
+                	Node* add=(Node*)mmap(NULL,
+                        	        length,
+                                	PROT_WRITE|PROT_READ,
+                                	MAP_ANON|MAP_PRIVATE,
+                                	-1,
+                                	0);
+                	Node *t = &new_root;
+                	memcpy(add, t, length);
+                	msync(add,length,MS_SYNC);
+			this->root=t;
+			return;
+		}
+		else{
+			Node* new_parent = path.back();
+			path.pop_back();
+			helper_split(new_parent, parent, new_node_address, path);
+		}
+        }
+	return;
+}
+
 
 
 
